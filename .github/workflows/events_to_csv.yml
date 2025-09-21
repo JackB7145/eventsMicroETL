@@ -1,0 +1,59 @@
+name: events-to-csv
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # runs daily at 03:00 UTC (11pm/10pm ET depending on DST)
+  workflow_dispatch:       # allow manual run from the Actions tab
+
+jobs:
+  fetch-events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency: events-to-csv            # prevent overlapping runs
+
+    env:
+      SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}   # set this in: Settings → Secrets and variables → Actions
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel packaging
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install google-search-results pandas
+          fi
+
+      - name: Run scraper → CSV
+        run: python events_to_csv.py
+
+      - name: Stamp filename with date
+        id: stamp
+        shell: bash
+        run: |
+          OUT="events_london_on_$(date -u +%F).csv"
+          mv events_london_on.csv "$OUT"
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CSV artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stamp.outputs.out }}
+          path: ${{ steps.stamp.outputs.out }}
+          if-no-files-found: error
