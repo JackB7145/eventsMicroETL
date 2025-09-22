@@ -9,8 +9,7 @@ jobs:
   serpapi-scrape:
     runs-on: ubuntu-latest
     env:
-      SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-      API_KEY: ${{ secrets.SERPAPI_KEY }}   # provide under both names, covers both cases
+      API_KEY: ${{ secrets.SERPAPI_KEY }}   # provide your SerpApi key
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -26,12 +25,41 @@ jobs:
       - name: Scrape SerpApi events
         run: python events_to_csv.py
 
-      - name: Upload SerpApi artifact
-        if: success()  # only upload if scrape worked
+      - name: Upload SerpApi raw artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: serpapi-raw.csv
+          path: events_london_on.csv
+
+  serpapi-transform:
+    runs-on: ubuntu-latest
+    needs: serpapi-scrape
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Download SerpApi raw artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: serpapi-raw.csv
+          path: .
+
+      - name: Transform SerpApi events
+        run: python transform_serpapi_events.py
+
+      - name: Upload SerpApi transformed artifact
         uses: actions/upload-artifact@v4
         with:
           name: serpapi-events.csv
-          path: events_london_on.csv
+          path: serpapi_events_transformed.csv
 
   western-scrape:
     runs-on: ubuntu-latest
@@ -51,7 +79,6 @@ jobs:
         run: python scrape_western_events.py
 
       - name: Upload Western raw artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: western-raw.csv
@@ -89,8 +116,7 @@ jobs:
 
   load-to-db:
     runs-on: ubuntu-latest
-    needs: [serpapi-scrape, western-transform]
-    if: always()   # ensures this job runs even if one of the sources fails
+    needs: [serpapi-transform, western-transform]
     env:
       DB_URL: ${{ secrets.DB_URL }}
     steps:
@@ -105,15 +131,13 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Download SerpApi artifact (if exists)
-        continue-on-error: true
+      - name: Download SerpApi transformed artifact
         uses: actions/download-artifact@v4
         with:
           name: serpapi-events.csv
           path: .
 
-      - name: Download Western artifact (if exists)
-        continue-on-error: true
+      - name: Download Western transformed artifact
         uses: actions/download-artifact@v4
         with:
           name: western-events.csv
