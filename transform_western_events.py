@@ -5,17 +5,13 @@ INPUT_CSV = "western_events.csv"
 OUTPUT_CSV = "western_events_transformed.csv"
 
 def main():
-    # Load data
     df = pd.read_csv(INPUT_CSV)
 
-    # Parse dates safely
     df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce", utc=True)
 
-    # Filter out past events
     today = datetime.utcnow().date()
     df = df[df["event_date"].dt.date > today]
 
-    # Couples-friendly filters
     positive_keywords = [
         "music", "concert", "performance", "festival", "party", "dance",
         "theatre", "play", "film", "movie", "art", "exhibit", "show",
@@ -36,10 +32,8 @@ def main():
 
     df = df[df.apply(is_couples_event, axis=1)]
 
-    # Add "Western: " prefix to event names
     df["event_name"] = df["event_name"].apply(lambda x: f"Western: {x.strip()}" if isinstance(x, str) else x)
 
-    # Save transformed dataset
     df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8")
     print(f"Transformed {len(df)} events → {OUTPUT_CSV}")
 

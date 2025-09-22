@@ -1,51 +1,61 @@
+import os
+import glob
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
-from dateutil import parser
-import os
 
 load_dotenv()
 
-DB_URL = os.getenv('DB_URL')
-CSV_FILE = "events_london_on.csv"
+DB_URL = os.getenv("DB_URL")
 
-df = pd.read_csv(CSV_FILE)
+def load_csvs_to_db():
+    csv_files = glob.glob("*_events_transformed.csv")
+    if not csv_files:
+        raise FileNotFoundError("No transformed event CSV files found.")
 
-df = df.rename(columns={
-    "title": "event_name",
-    "date.start_date": "event_date",
-    "description": "description",
-    "link": "link"
-})
-expected_cols = ["event_name", "event_date", "description", "link"]
-df = df[[c for c in expected_cols if c in df.columns]].fillna("")
+    dfs = []
+    for file in csv_files:
+        df = pd.read_csv(file)
 
-def safe_parse_date(val):
-    try:
-        if not val or str(val).strip() == "":
-            return None
-        return parser.parse(str(val), fuzzy=True).date()
-    except Exception:
-        return None
+        expected_cols = ["event_name", "event_date", "description", "link"]
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = ""
 
-df["event_date"] = df["event_date"].apply(safe_parse_date)
+        df = df[expected_cols].fillna("")
+        dfs.append(df)
 
-conn = psycopg2.connect(DB_URL)
-cur = conn.cursor()
+    final_df = pd.concat(dfs, ignore_index=True)
 
-records = list(df.itertuples(index=False, name=None))
+    conn = psycopg2.connect(DB_URL)
+    cur = conn.cursor()
 
-insert_query = """
-INSERT INTO events (event_name, event_date, description, link) 
-VALUES %s
-ON CONFLICT (event_name) DO NOTHING;
-"""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id SERIAL PRIMARY KEY,
+            event_name TEXT UNIQUE,
+            event_date TIMESTAMP,
+            description TEXT,
+            link TEXT
+        )
+    """)
 
-execute_values(cur, insert_query, records)
+    records = list(final_df.itertuples(index=False, name=None))
 
-conn.commit()
-cur.close()
-conn.close()
+    insert_query = """
+        INSERT INTO events (event_name, event_date, description, link) 
+        VALUES %s
+        ON CONFLICT (event_name) DO NOTHING;
+    """
 
-print(f"Inserted {len(records)} rows (duplicates skipped).")
+    execute_values(cur, insert_query, records)
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    print(f"Inserted {len(records)} rows (duplicates skipped).")
+
+if __name__ == "__main__":
+    load_csvs_to_db()
