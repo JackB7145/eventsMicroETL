@@ -1,4 +1,4 @@
-name: events-to-csv
+name: Upload-Events
 
 on:
   schedule:
