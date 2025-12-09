@@ -3,7 +3,7 @@ name: Keep-alive
 on:
   schedule:
     - cron: '0 0 */30 * *' # every 30 days
-  workflow_dispatch:       # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   keep_alive:
@@ -11,15 +11,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
+        with:
+          persist-credentials: false  
+  
       - name: Keep alive log
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           echo "Workflow active on $(date)" >> activity.log
+
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
+
+          # Replace origin with PAT-authenticated URL
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/${{ github.repository }}.git
+
           git add activity.log
           git commit -m "Keep repo active [skip ci]" || echo "No changes to commit"
+
           git push
