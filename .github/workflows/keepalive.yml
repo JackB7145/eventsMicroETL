@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          persist-credentials: false   # Required so GitHub token isn't injected
+          persist-credentials: false
 
       - name: Keep alive log
         env:
@@ -23,8 +23,8 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-          # Correct modern PAT auth format
-          git remote set-url origin https://${PAT_TOKEN}@github.com/${{ github.repository }}.git
+          # Correct, non-interactive PAT-based remote URL
+          git remote set-url origin https://${PAT_TOKEN}:x-oauth-basic@github.com/${{ github.repository }}.git
 
           git add activity.log
           git commit -m "Keep repo active [skip ci]" || echo "No changes to commit"
