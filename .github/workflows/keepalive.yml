@@ -3,6 +3,8 @@ name: Keep-alive
 on:
   schedule:
     - cron: '0 0 */30 * *' # every 30 days
+  workflow_dispatch:       # Allow manual trigger
+
 
 jobs:
   keep_alive:
